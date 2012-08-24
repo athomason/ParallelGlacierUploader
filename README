@@ -40,8 +40,7 @@ Notes:
 * This process does not appear to cause problems with the API, however, Amazon
   might not like it. Review the terms of service yourself before trusting your
   data.
-* Retrieval of an archive created this way has not been tested.
-
+* Retrieval of an archive created this way has not been tested. Caveat emptor.
 * The program is not particularly robust; if an error occurs, everything is
   aborted. Retries and recovery of partially completed uploads are not
   implemented.
