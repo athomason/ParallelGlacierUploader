@@ -1,0 +1,47 @@
+This is an upload tool for Amazon's Glacier storage service. It is based on
+Amazon's example Java code, but implements parallel uploading of archive chunks
+in order to increase the effective upload speed.
+
+In my testing of the service immediately after its announcement, the upload of
+a single chunk never went faster than 150KBps, hugely less than available
+bandwidth. However, chunks can be uploaded in parallel over different HTTP
+connections, potentially increasing the effective upload speed to the capacity
+of your uplink.
+
+This is a rudimentary command line tool; some knowledge of building and running
+Java projects is required to use it.
+
+Building:
+
+First install Eclipse (http://www.eclipse.org/downloads/) and the AWS Toolkit
+for Eclipse (http://aws.amazon.com/eclipse/). Follow the instructions at
+http://docs.amazonwebservices.com/amazonglacier/latest/dev/using-aws-sdk-for-java.html
+to create a new AWS Eclipse project, then copy ParallelGlacierUploader.java
+into the project workspace. Enter your AWS credentials into
+AwsCredentials.properties, then adjust the vaultName and maxThreads constants
+to appropriate values for you. maxThreads should be set based on an empirical
+measurement of your upload speed to Glacier, and the upstream speed of your
+network connection. For example, if you have a 10MBps upload speed and
+typically can upload at 128KBps to Glacier, maxThreads should be set no higher
+than 80.
+
+Running:
+
+To run from within Eclipse, enter the path to your archive file as a command
+line parameter under Run | Run configurations | Arguments, then click Run. The
+progress of the upload will be printed in the Console tab.
+
+Notes:
+
+* Since this may still be a long-running process, the program attempts to
+  conserve memory by using the smallest chunk size that Glacier will allow and
+  only keeping in-flight chunks in memory at any time. But of course, more
+  parallel threads means more memory.
+* This process does not appear to cause problems with the API, however, Amazon
+  might not like it. Review the terms of service yourself before trusting your
+  data.
+* Retrieval of an archive created this way has not been tested.
+
+* The program is not particularly robust; if an error occurs, everything is
+  aborted. Retries and recovery of partially completed uploads are not
+  implemented.
