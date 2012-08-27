@@ -3,6 +3,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,8 +14,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.AmazonServiceException;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.services.glacier.AmazonGlacierClient;
@@ -103,7 +102,7 @@ public class ParallelGlacierUploader {
         System.out.println("ArchiveID: " + uploadId);
     }
 
-    private void uploadParts() throws AmazonServiceException, NoSuchAlgorithmException, AmazonClientException, IOException {
+    private void uploadParts() throws Exception {
     	final ExecutorService executor = Executors.newFixedThreadPool(maxThreads);
     	
     	final Date start = new Date();
@@ -116,9 +115,9 @@ public class ParallelGlacierUploader {
     	    			Date end = new Date();
     	    			long secs = (end.getTime() - start.getTime()) / 1000;
     	    	    	long remainingSecs = (long) (numParts - numPartsDone) * (secs / numPartsDone);
-    	    	    	System.out.println(String.format("Upload %.1f%% complete, approximate finish in %,ds (%s)",
-    	    	    			100 * (float) numPartsDone / numParts,
-    	    	    			remainingSecs,
+    	    	    	System.out.println(String.format("Upload %.1f%% complete (%d/%d), approximate finish in %,.1fhr (%s)",
+    	    	    			100 * (float) numPartsDone / numParts, numPartsDone, numParts,
+    	    	    			(float) remainingSecs / 3600,
     	    	    			new Date(end.getTime() + 1000 * remainingSecs)));
     	    		}
     	    		catch (Exception e) {
@@ -136,16 +135,29 @@ public class ParallelGlacierUploader {
 			System.err.println("Interrupted while waiting for threads: " + e);
 		}
     	
-        checksum = TreeHashGenerator.calculateTreeHash(binaryChecksums);
+    	Date end = new Date();
+    	long elapsed = (end.getTime() - start.getTime()) / 1000;
+    	System.out.println(String.format(
+    			"Finished uploading %d parts at " + end + " in %,ds (%,.3fMB/s)",
+    			numPartsDone,
+    			elapsed,
+    			(float) numPartsDone * partSize / elapsed));
+    	
+    	if (numParts == numPartsDone) {
+        	checksum = TreeHashGenerator.calculateTreeHash(binaryChecksums);
+    	}
+    	else {
+        	throw new Exception("Completed the wrong number of parts: " + numParts);
+    	}
     }
     
     private void uploadPart(int partNum) throws IOException {
-    	long position = partSize * partNum;
+    	long position = (long) partSize * partNum;
     	byte[] buffer = new byte[partSize];
 
     	File file = new File(archiveFilePath);
-    	FileInputStream fileToUpload = new FileInputStream(file);
-    	fileToUpload.skip(position);
+    	RandomAccessFile fileToUpload = new RandomAccessFile(file, "r");
+    	fileToUpload.seek(position);
     	int read = fileToUpload.read(buffer, 0, buffer.length);
         fileToUpload.close();
         
@@ -172,7 +184,7 @@ public class ParallelGlacierUploader {
     	Date end = new Date();
     	
     	System.out.println(end);
-    	System.out.println("Part uploaded, checksum: " + partResult.getChecksum());
+    	System.out.println(end + ": checksum #" + partNum + ": " + partResult.getChecksum());
     	long seconds = (end.getTime() - start.getTime()) / 1000;
     	float rate = read / (1024 * seconds);
     	System.out.println(String.format("Transferred %,d bytes in %ds @ %.1fKB/s",
